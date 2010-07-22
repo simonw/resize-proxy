@@ -119,4 +119,4 @@ if __name__ == '__main__':
     run_wsgi_app(webapp.WSGIApplication([
         (r'/w/(\d+)/', WidthHandler),
         (r'/s/(\d+)/', SquareHandler),
-    ], debug=True))
+    ], debug=False))
