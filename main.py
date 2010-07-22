@@ -1,8 +1,9 @@
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp.util import run_wsgi_app
 from google.appengine.api.images import Image, JPEG
+from google.appengine.api import memcache
 
-import re, urllib
+import re, urllib, random
 
 ALLOWED_URL_WIDTHS = (
     (re.compile(
@@ -25,15 +26,31 @@ class BaseResizeHandler(webapp.RequestHandler):
         
         img = self.load_image(url)
         self.process_image(img, width)
-        resized = img.execute_transforms(output_encoding = JPEG)
+        image_data = img.execute_transforms(output_encoding = JPEG)
+        self.set_cached(url, width, image_data)
+        
         self.response.headers['Content-Type'] = 'image/jpeg'
-        self.response.out.write(resized)
+        self.response.out.write(image_data)
     
     def get_cached(self, url, width):
-        return None
+        key = 'resized-image:%s:%s:%s' % (self.cache_prefix, url, width)
+        return memcache.get(key)
+    
+    def set_cached(self, url, width, image_data):
+        key = 'resized-image:%s:%s:%s' % (self.cache_prefix, url, width)
+        # Cache for 25 to 35 days, to avoid everything expiring at once
+        cache_days = 25 + (random.randint(0, 10)) 
+        memcache.add(key, image_data, cache_days * 24 * 60 * 60)
     
     def load_image(self, url):
-        return Image(image_data = urllib.urlopen(url).read()) 
+        key = 'fetched-image:%s' % url
+        image_data = memcache.get(key)
+        if image_data is None:
+            image_data = urllib.urlopen(url).read()
+            # Cache for 25 to 35 days, to avoid everything expiring at once
+            cache_days = 25 + (random.randint(0, 10)) 
+            memcache.add(key, image_data, cache_days * 24 * 60 * 60)
+        return Image(image_data = image_data)
     
     def error(self, msg):
         self.response.out.write("""
@@ -44,12 +61,14 @@ class BaseResizeHandler(webapp.RequestHandler):
         )
 
 class WidthHandler(BaseResizeHandler):
+    cache_prefix = 'width'
     def process_image(self, img, width):
         img.resize(
             width = min(width, img.width),
         )
 
 class SquareHandler(BaseResizeHandler):
+    cache_prefix = 'square'
     def process_image(self, img, width):
         for op, kwargs in resize_crop_square(img.width, img.height, width):
             getattr(img, op)(**kwargs)
