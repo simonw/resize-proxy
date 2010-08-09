@@ -7,7 +7,7 @@ import re, urllib, random
 
 ALLOWED_URL_WIDTHS = (
     (re.compile(
-        r'http://www1\.sciencemuseum\.org\.uk/hommedia\.ashx\?id=\d+&size=\w+'
+       r'http://www1?\.sciencemuseum\.org\.uk/hommedia\.ashx\?id=\d+&size=\w+'
     ), (100, 250)),
 )
 
